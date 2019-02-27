@@ -4,7 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using bookstore.Data;
 using bookstore.GraphQL;
+using bookstore.GraphQL.Types;
 using bookstore.Middleware;
+using GraphQL;
+using GraphQL.Http;
+using GraphQL.Types;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -29,6 +33,20 @@ namespace bookstore
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddSingleton<IDocumentExecuter, DocumentExecuter>();
+            services.AddSingleton<IDocumentWriter, DocumentWriter>();
+
+            services.AddScoped<IDependencyResolver>(s => new FuncDependencyResolver(s.GetRequiredService));
+            services.AddScoped<ISchema, BookstoreSchema>();
+            services.AddScoped<BookstoreQuery>();
+            services.AddScoped<CustomerType>();
+            services.AddScoped<AddressType>();
+            services.AddScoped<OrderType>();
+            services.AddScoped<BookType>();
+            services.AddScoped<AuthorType>();
+            services.AddScoped<StockInfoType>();
+
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
             services.AddDbContext<BookstoreContext>(opt => opt.UseInMemoryDatabase(databaseName: "bookstore"));
         }
@@ -47,13 +65,10 @@ namespace bookstore
                 app.UseHsts();
             }
 
-            app.UseMiddleware<GraphQLMiddleware>(new GraphQLSettings
-            {
-                BuildUserContext = ctx => new GraphQLUserContext
-                {
-                    User = ctx.User
-                }
-            });
+            app.UseGraphQL(opt =>
+             {
+                 opt.BuildUserContext = ctx => new GraphQLUserContext { User = ctx.User };
+             });
 
             app.UseHttpsRedirection();
             app.UseMvc();

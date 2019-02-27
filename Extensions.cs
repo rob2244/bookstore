@@ -3,6 +3,8 @@ using System.Linq;
 using Bogus;
 using bookstore.Data;
 using bookstore.Data.Models;
+using bookstore.GraphQL;
+using bookstore.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,24 +16,26 @@ namespace bookstore
         {
             Randomizer.Seed = new Random(8675309);
 
+            // issue with books orders and authors
+
             var stock = new Faker<StockInfo>()
-               .RuleFor(s => s.Id, opt => opt.Random.Int())
+               .RuleFor(s => s.Id, opt => opt.IndexGlobal)
                .RuleFor(s => s.NumberInStock, opt => opt.Random.Int(0, 100))
                .RuleFor(s => s.SaleDiscount, opt => opt.Random.Double(0, 20))
                .RuleFor(s => s.UnitPrice, opt => opt.Random.Double(15, 50));
 
             var books = new Faker<Book>()
-              .RuleFor(b => b.Id, opt => opt.Random.Int())
+              .RuleFor(b => b.Id, opt => opt.IndexGlobal)
               .RuleFor(b => b.PageNumber, opt => opt.Random.Int(0, 500))
               .RuleFor(b => b.Rating, opt => opt.Random.Double(0, 5))
               .RuleFor(b => b.StockInfo, opt => stock.Generate())
-              .RuleFor(b => b.Title, opt => opt.Lorem.Text())
+              .RuleFor(b => b.Title, opt => opt.Random.Words())
               .RuleFor(b => b.Description, opt => opt.Lorem.Paragraph())
-              .Generate(20);
+              .Generate(1000);
 
 
             var authors = new Faker<Author>()
-                .RuleFor(a => a.Id, opt => opt.Random.Int())
+                .RuleFor(a => a.Id, opt => opt.IndexGlobal)
                 .RuleFor(a => a.FirstName, opt => opt.Name.FirstName())
                 .RuleFor(a => a.LastName, opt => opt.Name.LastName())
                 .RuleFor(a => a.Biography, opt => opt.Lorem.Paragraph())
@@ -47,13 +51,13 @@ namespace bookstore
 
 
             var order = new Faker<Order>()
-                .RuleFor(o => o.Id, opt => opt.Random.Int())
+                .RuleFor(o => o.Id, opt => opt.IndexGlobal)
                 .RuleFor(o => o.Address, opt => address.Generate())
                 .RuleFor(o => o.Books, opt => opt.PickRandom(books, 10).ToHashSet())
                 .RuleFor(o => o.Price, (opt, o) => o.Books.Select(b => b.StockInfo.UnitPrice * b.StockInfo.SaleDiscount).Sum());
 
             var customers = new Faker<Customer>()
-                .RuleFor(c => c.Id, opt => opt.Random.Int())
+                .RuleFor(c => c.Id, opt => opt.IndexGlobal)
                 .RuleFor(c => c.Address, opt => address.Generate())
                 .RuleFor(c => c.FirstName, opt => opt.Name.FirstName())
                 .RuleFor(c => c.LastName, opt => opt.Name.LastName())
@@ -70,6 +74,15 @@ namespace bookstore
             ctx.Customers.AddRange(customers);
             ctx.SaveChanges();
 
+            return builder;
+        }
+
+        public static IApplicationBuilder UseGraphQL(this IApplicationBuilder builder, Action<GraphQLSettings> config)
+        {
+            var settings = new GraphQLSettings();
+            config(settings);
+
+            builder.UseMiddleware<GraphQLMiddleware>(settings);
             return builder;
         }
     }
